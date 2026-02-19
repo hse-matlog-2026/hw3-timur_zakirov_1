@@ -1,4 +1,5 @@
 # This file is part of the materials accompanying the book
+# This file is part of the materials accompanying the book
 # "Mathematical Logic through Python" by Gonczarowski and Nisan,
 # Cambridge University Press. Book site: www.LogicThruPython.org
 # (c) Yannai A. Gonczarowski and Noam Nisan, 2017-2022
@@ -59,9 +60,9 @@ def is_binary(string: str) -> bool:
     Returns:
         ``True`` if the given string is a binary operator, ``False`` otherwise.
     """
-    return string == '&' or string == '|' or string == '->'
+    # return string == '&' or string == '|' or string == '->'
     # For Chapter 3:
-    # return string in {'&', '|',  '->', '+', '<->', '-&', '-|'}
+    return string in {'&', '|',  '->', '+', '<->', '-&', '-|'}
 
 @frozen
 class Formula:
@@ -338,55 +339,54 @@ class Formula:
 
     def substitute_variables(self, substitution_map: Mapping[str, Formula]) -> \
             Formula:
-        """Substitutes in the current formula, each variable name `v` that is a
-        key in `substitution_map` with the formula `substitution_map[v]`.
-
-        Parameters:
-            substitution_map: mapping defining the substitutions to be
-                performed.
-
-        Returns:
-            The formula resulting from performing all substitutions. Only
-            variable name occurrences originating in the current formula are
-            substituted (i.e., variable name occurrences originating in one of
-            the specified substitutions are not subjected to additional
-            substitutions).
-
-        Examples:
-            >>> Formula.parse('((p->p)|r)').substitute_variables(
-            ...     {'p': Formula.parse('(q&r)'), 'r': Formula.parse('p')})
-            (((q&r)->(q&r))|p)
-        """
         for variable in substitution_map:
             assert is_variable(variable)
+        if is_variable(self.root):
+            if self.root in substitution_map:
+                return substitution_map[self.root]
+            return self
+
+        if is_constant(self.root):
+            return self
+
+        if is_unary(self.root):
+            return Formula(self.root, self.first.substitute_variables(substitution_map))
+
+        return Formula(
+            self.root,
+            self.first.substitute_variables(substitution_map),
+            self.second.substitute_variables(substitution_map)
+        )
         # Task 3.3
 
     def substitute_operators(self, substitution_map: Mapping[str, Formula]) -> \
             Formula:
-        """Substitutes in the current formula, each constant or operator `op`
-        that is a key in `substitution_map` with the formula
-        `substitution_map[op]` applied to its (zero or one or two) operands,
-        where the first operand is used for every occurrence of ``'p'`` in the
-        formula and the second for every occurrence of ``'q'``.
-
-        Parameters:
-            substitution_map: mapping defining the substitutions to be
-                performed.
-
-        Returns:
-            The formula resulting from performing all substitutions. Only
-            operator occurrences originating in the current formula are
-            substituted (i.e., operator occurrences originating in one of the
-            specified substitutions are not subjected to additional
-            substitutions).
-
-        Examples:
-            >>> Formula.parse('((x&y)&~z)').substitute_operators(
-            ...     {'&': Formula.parse('~(~p|~q)')})
-            ~(~~(~x|~y)|~~z)
-        """
         for operator in substitution_map:
             assert is_constant(operator) or is_unary(operator) or \
                    is_binary(operator)
             assert substitution_map[operator].variables().issubset({'p', 'q'})
+        if is_variable(self.root):
+            return self
+
+        if is_constant(self.root):
+            if self.root in substitution_map:
+                return substitution_map[self.root]
+            return self
+
+        if is_unary(self.root):
+            sub = self.first.substitute_operators(substitution_map)
+            if self.root in substitution_map:
+                templ = substitution_map[self.root]
+                return templ.substitute_variables({'p': sub})
+            return Formula(self.root, sub)
+
+        left = self.first.substitute_operators(substitution_map)
+        right = self.second.substitute_operators(substitution_map)
+
+        if self.root in substitution_map:
+            templ = substitution_map[self.root]
+            return templ.substitute_variables({'p': left, 'q': right})
+
+        return Formula(self.root, left, right)
+
         # Task 3.4
